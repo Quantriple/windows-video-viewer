@@ -205,10 +205,8 @@ bool DatabaseManager::SetDatabaseVersion(int version)
         return false;
     }
 
-    sqlite3_stmt* stmt = PrepareStatement(
-        "INSERT OR REPLACE INTO database_version (id, version) VALUES (1, ?);"
-    );
-    
+    const std::string sql = "INSERT OR REPLACE INTO database_version (id, version) VALUES (1, ?)";
+    sqlite3_stmt* stmt = PrepareStatement(sql);
     if (!stmt) {
         return false;
     }
@@ -222,20 +220,49 @@ bool DatabaseManager::SetDatabaseVersion(int version)
 
 bool DatabaseManager::UpgradeDatabase(int fromVersion, int toVersion)
 {
+    if (!IsConnected()) {
+        return false;
+    }
+
     std::wcout << L"升级数据库从版本 " << fromVersion << L" 到版本 " << toVersion << std::endl;
-    
+
+    // 开始事务
     if (!BeginTransaction()) {
         return false;
     }
 
-    // 这里可以添加版本升级逻辑
-    // 目前只是简单地设置新版本号
-    bool success = SetDatabaseVersion(toVersion);
+    try {
+        // 根据版本执行相应的升级脚本
+        for (int version = fromVersion; version < toVersion; ++version) {
+            switch (version) {
+            case 0:
+                // 从版本0升级到版本1
+                // 这里可以添加具体的升级逻辑
+                break;
+            default:
+                std::wcerr << L"未知的数据库版本: " << version << std::endl;
+                RollbackTransaction();
+                return false;
+            }
+        }
 
-    if (success) {
-        return CommitTransaction();
-    } else {
+        // 更新数据库版本
+        if (!SetDatabaseVersion(toVersion)) {
+            RollbackTransaction();
+            return false;
+        }
+
+        // 提交事务
+        if (!CommitTransaction()) {
+            return false;
+        }
+
+        std::wcout << L"数据库升级成功" << std::endl;
+        return true;
+    }
+    catch (...) {
         RollbackTransaction();
+        std::wcerr << L"数据库升级过程中发生异常" << std::endl;
         return false;
     }
 }
@@ -260,27 +287,21 @@ bool DatabaseManager::CreateVideoFilesTable()
             file_path TEXT NOT NULL UNIQUE,
             file_name TEXT NOT NULL,
             file_size INTEGER NOT NULL,
-            duration INTEGER,
-            width INTEGER,
-            height INTEGER,
-            frame_rate REAL,
-            bit_rate INTEGER,
-            codec TEXT,
+            duration INTEGER DEFAULT 0,
+            width INTEGER DEFAULT 0,
+            height INTEGER DEFAULT 0,
+            frame_rate REAL DEFAULT 0.0,
+            bit_rate INTEGER DEFAULT 0,
+            codec TEXT DEFAULT '',
             created_time INTEGER NOT NULL,
             modified_time INTEGER NOT NULL,
-            last_accessed INTEGER,
+            last_accessed INTEGER DEFAULT 0,
             is_favorite INTEGER DEFAULT 0,
             play_count INTEGER DEFAULT 0,
-            last_played INTEGER,
-            thumbnail_path TEXT,
-            metadata_extracted INTEGER DEFAULT 0,
-            CONSTRAINT chk_file_size CHECK (file_size >= 0),
-            CONSTRAINT chk_duration CHECK (duration IS NULL OR duration >= 0),
-            CONSTRAINT chk_dimensions CHECK (
-                (width IS NULL AND height IS NULL) OR 
-                (width > 0 AND height > 0)
-            )
-        );
+            last_played INTEGER DEFAULT 0,
+            thumbnail_path TEXT DEFAULT '',
+            metadata_extracted INTEGER DEFAULT 0
+        )
     )";
 
     if (!ExecuteSQL(sql)) {
@@ -289,17 +310,18 @@ bool DatabaseManager::CreateVideoFilesTable()
 
     // 创建索引以提高查询性能
     const std::vector<std::string> indexes = {
-        "CREATE INDEX IF NOT EXISTS idx_video_files_path ON video_files(file_path);",
-        "CREATE INDEX IF NOT EXISTS idx_video_files_name ON video_files(file_name);",
-        "CREATE INDEX IF NOT EXISTS idx_video_files_size ON video_files(file_size);",
-        "CREATE INDEX IF NOT EXISTS idx_video_files_modified ON video_files(modified_time);",
-        "CREATE INDEX IF NOT EXISTS idx_video_files_favorite ON video_files(is_favorite);",
-        "CREATE INDEX IF NOT EXISTS idx_video_files_last_played ON video_files(last_played);"
+        "CREATE INDEX IF NOT EXISTS idx_video_files_path ON video_files(file_path)",
+        "CREATE INDEX IF NOT EXISTS idx_video_files_name ON video_files(file_name)",
+        "CREATE INDEX IF NOT EXISTS idx_video_files_size ON video_files(file_size)",
+        "CREATE INDEX IF NOT EXISTS idx_video_files_duration ON video_files(duration)",
+        "CREATE INDEX IF NOT EXISTS idx_video_files_favorite ON video_files(is_favorite)",
+        "CREATE INDEX IF NOT EXISTS idx_video_files_play_count ON video_files(play_count)",
+        "CREATE INDEX IF NOT EXISTS idx_video_files_last_played ON video_files(last_played)"
     };
 
     for (const auto& indexSql : indexes) {
         if (!ExecuteSQL(indexSql)) {
-            std::cerr << "创建索引失败: " << indexSql << std::endl;
+            std::wcerr << L"创建索引失败: " << indexSql.c_str() << std::endl;
             // 索引创建失败不是致命错误，继续执行
         }
     }
@@ -314,35 +336,13 @@ bool DatabaseManager::CreateThumbnailsTable()
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             video_file_id INTEGER NOT NULL,
             thumbnail_path TEXT NOT NULL,
-            width INTEGER NOT NULL,
-            height INTEGER NOT NULL,
-            file_size INTEGER NOT NULL,
+            thumbnail_size INTEGER DEFAULT 0,
             created_time INTEGER NOT NULL,
-            quality INTEGER DEFAULT 80,
-            FOREIGN KEY (video_file_id) REFERENCES video_files(id) ON DELETE CASCADE,
-            CONSTRAINT chk_thumbnail_dimensions CHECK (width > 0 AND height > 0),
-            CONSTRAINT chk_thumbnail_size CHECK (file_size >= 0),
-            CONSTRAINT chk_thumbnail_quality CHECK (quality >= 1 AND quality <= 100)
-        );
+            FOREIGN KEY (video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
+        )
     )";
 
-    if (!ExecuteSQL(sql)) {
-        return false;
-    }
-
-    // 创建索引
-    const std::vector<std::string> indexes = {
-        "CREATE INDEX IF NOT EXISTS idx_thumbnails_video_id ON thumbnails(video_file_id);",
-        "CREATE INDEX IF NOT EXISTS idx_thumbnails_path ON thumbnails(thumbnail_path);"
-    };
-
-    for (const auto& indexSql : indexes) {
-        if (!ExecuteSQL(indexSql)) {
-            std::cerr << "创建缩略图索引失败: " << indexSql << std::endl;
-        }
-    }
-
-    return true;
+    return ExecuteSQL(sql);
 }
 
 bool DatabaseManager::CreateTagsTable()
@@ -350,49 +350,14 @@ bool DatabaseManager::CreateTagsTable()
     const std::string sql = R"(
         CREATE TABLE IF NOT EXISTS tags (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            color TEXT DEFAULT '#007ACC',
-            created_time INTEGER NOT NULL,
-            usage_count INTEGER DEFAULT 0,
-            CONSTRAINT chk_tag_name CHECK (LENGTH(name) > 0 AND LENGTH(name) <= 50)
-        );
-    )";
-
-    if (!ExecuteSQL(sql)) {
-        return false;
-    }
-
-    // 创建视频文件标签关联表
-    const std::string videoTagsSql = R"(
-        CREATE TABLE IF NOT EXISTS video_tags (
             video_file_id INTEGER NOT NULL,
-            tag_id INTEGER NOT NULL,
+            tag_name TEXT NOT NULL,
             created_time INTEGER NOT NULL,
-            PRIMARY KEY (video_file_id, tag_id),
-            FOREIGN KEY (video_file_id) REFERENCES video_files(id) ON DELETE CASCADE,
-            FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-        );
+            FOREIGN KEY (video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
+        )
     )";
 
-    if (!ExecuteSQL(videoTagsSql)) {
-        return false;
-    }
-
-    // 创建索引
-    const std::vector<std::string> indexes = {
-        "CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);",
-        "CREATE INDEX IF NOT EXISTS idx_tags_usage ON tags(usage_count DESC);",
-        "CREATE INDEX IF NOT EXISTS idx_video_tags_video ON video_tags(video_file_id);",
-        "CREATE INDEX IF NOT EXISTS idx_video_tags_tag ON video_tags(tag_id);"
-    };
-
-    for (const auto& indexSql : indexes) {
-        if (!ExecuteSQL(indexSql)) {
-            std::cerr << "创建标签索引失败: " << indexSql << std::endl;
-        }
-    }
-
-    return true;
+    return ExecuteSQL(sql);
 }
 
 bool DatabaseManager::CreateFavoritesTable()
@@ -402,37 +367,20 @@ bool DatabaseManager::CreateFavoritesTable()
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             video_file_id INTEGER NOT NULL UNIQUE,
             created_time INTEGER NOT NULL,
-            notes TEXT,
             FOREIGN KEY (video_file_id) REFERENCES video_files(id) ON DELETE CASCADE
-        );
+        )
     )";
 
-    if (!ExecuteSQL(sql)) {
-        return false;
-    }
-
-    // 创建索引
-    const std::vector<std::string> indexes = {
-        "CREATE INDEX IF NOT EXISTS idx_favorites_video_id ON favorites(video_file_id);",
-        "CREATE INDEX IF NOT EXISTS idx_favorites_created ON favorites(created_time DESC);"
-    };
-
-    for (const auto& indexSql : indexes) {
-        if (!ExecuteSQL(indexSql)) {
-            std::cerr << "创建收藏索引失败: " << indexSql << std::endl;
-        }
-    }
-
-    return true;
+    return ExecuteSQL(sql);
 }
 
 bool DatabaseManager::CreateVersionTable()
 {
     const std::string sql = R"(
         CREATE TABLE IF NOT EXISTS database_version (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
+            id INTEGER PRIMARY KEY,
             version INTEGER NOT NULL
-        );
+        )
     )";
 
     if (!ExecuteSQL(sql)) {
