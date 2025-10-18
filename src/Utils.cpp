@@ -159,6 +159,11 @@ bool ShowConfirmDialog(HWND hwnd, const std::string& message, const std::string&
     return result == IDYES;
 }
 
+bool ShowConfirmDialog(HWND hwnd, const std::wstring& message, const std::wstring& title) {
+    int result = MessageBoxW(hwnd, message.c_str(), title.c_str(), MB_YESNO | MB_ICONQUESTION);
+    return result == IDYES;
+}
+
 std::filesystem::path SelectFolderDialog(HWND hwnd, const std::string& title) {
     printf("=== SelectFolderDialog 开始 ===\n");
     printf("父窗口句柄: %p\n", hwnd);
@@ -182,7 +187,7 @@ std::filesystem::path SelectFolderDialog(HWND hwnd, const std::string& title) {
                                  IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
     
     if (FAILED(hr)) {
-        printf("SelectFolderDialog: CoCreateInstance 失败, HRESULT = 0x%08X\n", hr);
+        printf("SelectFolderDialog: CoCreateInstance 失败, HRESULT = 0x%08lX\n", hr);
         return std::filesystem::path();
     }
     
@@ -196,10 +201,10 @@ std::filesystem::path SelectFolderDialog(HWND hwnd, const std::string& title) {
         if (SUCCEEDED(hr)) {
             printf("SelectFolderDialog: 设置 FOS_PICKFOLDERS 选项成功\n");
         } else {
-            printf("SelectFolderDialog: 设置 FOS_PICKFOLDERS 选项失败, HRESULT = 0x%08X\n", hr);
+            printf("SelectFolderDialog: 设置 FOS_PICKFOLDERS 选项失败, HRESULT = 0x%08lX\n", hr);
         }
     } else {
-        printf("SelectFolderDialog: GetOptions 失败, HRESULT = 0x%08X\n", hr);
+        printf("SelectFolderDialog: GetOptions 失败, HRESULT = 0x%08lX\n", hr);
     }
     
     // 设置标题
@@ -209,7 +214,7 @@ std::filesystem::path SelectFolderDialog(HWND hwnd, const std::string& title) {
         if (SUCCEEDED(hr)) {
             printf("SelectFolderDialog: 设置标题成功: %s\n", title.c_str());
         } else {
-            printf("SelectFolderDialog: 设置标题失败, HRESULT = 0x%08X\n", hr);
+            printf("SelectFolderDialog: 设置标题失败, HRESULT = 0x%08lX\n", hr);
         }
     }
     
@@ -222,7 +227,7 @@ std::filesystem::path SelectFolderDialog(HWND hwnd, const std::string& title) {
         } else if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
             printf("SelectFolderDialog: 用户取消了对话框\n");
         } else {
-            printf("SelectFolderDialog: 显示对话框失败, HRESULT = 0x%08X\n", hr);
+            printf("SelectFolderDialog: 显示对话框失败, HRESULT = 0x%08lX\n", hr);
         }
     }
     
@@ -241,11 +246,11 @@ std::filesystem::path SelectFolderDialog(HWND hwnd, const std::string& title) {
                 pFileOpen->Release();
                 return result;
             } else {
-                printf("SelectFolderDialog: GetDisplayName 失败, HRESULT = 0x%08X\n", hr);
+                printf("SelectFolderDialog: GetDisplayName 失败, HRESULT = 0x%08lX\n", hr);
             }
             pItem->Release();
         } else {
-            printf("SelectFolderDialog: GetResult 失败, HRESULT = 0x%08X\n", hr);
+            printf("SelectFolderDialog: GetResult 失败, HRESULT = 0x%08lX\n", hr);
         }
     }
     
@@ -286,6 +291,15 @@ bool OpenWithProgram(const std::filesystem::path& filePath, const std::filesyste
     HINSTANCE result = ShellExecuteW(NULL, L"open", wProgramPath.c_str(), 
                                     parameters.c_str(), NULL, SW_SHOWNORMAL);
     return reinterpret_cast<intptr_t>(result) > 32;
+}
+
+std::filesystem::path SelectSingleVideoFileDialog(HWND hwnd, const std::string& title) {
+    printf("=== SelectSingleVideoFileDialog 开始 ===\n");
+    printf("父窗口句柄: %p\n", hwnd);
+    printf("对话框标题: %s\n", title.c_str());
+    
+    // 实现文件选择对话框逻辑
+    return std::filesystem::path();
 }
 
 } // namespace Utils
