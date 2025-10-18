@@ -11,4 +11,12 @@ std::string VideoFile::getFormattedTime() const {
     return Utils::FormatFileTime(lastModified);
 }
 
+std::string FolderItem::getFormattedSize() const {
+    return Utils::FormatFileSize(totalSize);
+}
+
+std::string FolderItem::getFormattedTime() const {
+    return Utils::FormatFileTime(lastModified);
+}
+
 } // namespace VideoViewer

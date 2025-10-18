@@ -105,6 +105,113 @@ struct VideoFile {
 };
 
 /**
+ * @brief 项目类型枚举
+ */
+enum class ItemType {
+    VideoFile,      // 视频文件
+    Folder          // 文件夹
+};
+
+/**
+ * @brief 文件夹项目结构体
+ */
+struct FolderItem {
+    std::filesystem::path folderPath;                  // 文件夹完整路径
+    std::string folderName;                            // 文件夹名（不含路径）
+    std::filesystem::file_time_type lastModified;     // 最后修改时间
+    size_t videoCount;                                 // 包含的视频文件数量
+    std::uintmax_t totalSize;                         // 文件夹总大小
+
+    FolderItem() 
+        : videoCount(0)
+        , totalSize(0)
+    {
+    }
+
+    FolderItem(const std::filesystem::path& path)
+        : folderPath(path)
+        , folderName(path.filename().string())
+        , videoCount(0)
+        , totalSize(0)
+    {
+        try {
+            if (std::filesystem::exists(path)) {
+                lastModified = std::filesystem::last_write_time(path);
+            }
+        }
+        catch (const std::filesystem::filesystem_error&) {
+            // 忽略文件系统错误，保持默认值
+        }
+    }
+
+    /**
+     * @brief 获取格式化的文件夹大小字符串
+     */
+    std::string getFormattedSize() const;
+
+    /**
+     * @brief 获取格式化的修改时间字符串
+     */
+    std::string getFormattedTime() const;
+
+    /**
+     * @brief 检查文件夹是否存在
+     */
+    bool exists() const {
+        return std::filesystem::exists(folderPath);
+    }
+};
+
+/**
+ * @brief 通用列表项结构体（用于在列表中同时显示视频文件和文件夹）
+ */
+struct ListItem {
+    ItemType type;                                     // 项目类型
+    VideoFile videoFile;                               // 视频文件（当type为VideoFile时使用）
+    FolderItem folderItem;                             // 文件夹项目（当type为Folder时使用）
+
+    ListItem(const VideoFile& file) 
+        : type(ItemType::VideoFile)
+        , videoFile(file)
+    {
+    }
+
+    ListItem(const FolderItem& folder) 
+        : type(ItemType::Folder)
+        , folderItem(folder)
+    {
+    }
+
+    /**
+     * @brief 获取项目名称
+     */
+    std::string getName() const {
+        return type == ItemType::VideoFile ? videoFile.fileName : folderItem.folderName;
+    }
+
+    /**
+     * @brief 获取项目路径
+     */
+    std::filesystem::path getPath() const {
+        return type == ItemType::VideoFile ? videoFile.filePath : folderItem.folderPath;
+    }
+
+    /**
+     * @brief 获取格式化的大小字符串
+     */
+    std::string getFormattedSize() const {
+        return type == ItemType::VideoFile ? videoFile.getFormattedSize() : folderItem.getFormattedSize();
+    }
+
+    /**
+     * @brief 获取格式化的时间字符串
+     */
+    std::string getFormattedTime() const {
+        return type == ItemType::VideoFile ? videoFile.getFormattedTime() : folderItem.getFormattedTime();
+    }
+};
+
+/**
  * @brief 视频信息结构体（用于后续扩展）
  */
 struct VideoInfo {
@@ -127,6 +234,7 @@ struct AppSettings {
     std::filesystem::path playerPath;                 // 播放器路径
     std::filesystem::path cachePath;                  // 缓存路径
     bool useDefaultPlayer;                            // 是否使用默认播放器
+    bool recursiveScan;                               // 是否递归扫描子目录
     int thumbnailSize;                                // 缩略图大小
     bool showFileSize;                                // 是否显示文件大小
     bool showModifiedTime;                            // 是否显示修改时间
@@ -135,6 +243,7 @@ struct AppSettings {
 
     AppSettings()
         : useDefaultPlayer(true)
+        , recursiveScan(true)
         , thumbnailSize(150)
         , showFileSize(true)
         , showModifiedTime(true)
