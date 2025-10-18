@@ -1,0 +1,72 @@
+# Build directories
+build/
+build_*/
+bin/
+obj/
+
+# Visual Studio files
+.vs/
+*.vcxproj.user
+*.sln.docstates
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# CMake files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# Compiled Object files
+*.o
+*.obj
+*.exe
+*.dll
+*.lib
+*.a
+*.so
+*.dylib
+
+# Debug files
+*.pdb
+*.ilk
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Database files (exclude test databases)
+*.db
+*.sqlite
+*.sqlite3
+!test_videos.db
+
+# Log files
+*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Third party binaries (keep structure but ignore executables)
+third_party/sqlite/bin/*.exe
+third_party/sqlite/bin/*.dll
+
+# Backup files
+*_backup.*
+*.bak
