@@ -105,6 +105,15 @@ void ShowInfoMessage(HWND hwnd, const std::string& message, const std::string& t
 bool ShowConfirmDialog(HWND hwnd, const std::string& message, const std::string& title = "确认");
 
 /**
+ * @brief 显示确认对话框（Unicode版本）
+ * @param hwnd 父窗口句柄
+ * @param message 消息内容（宽字符）
+ * @param title 对话框标题（宽字符）
+ * @return 用户点击"是"返回 true，否则返回 false
+ */
+bool ShowConfirmDialog(HWND hwnd, const std::wstring& message, const std::wstring& title = L"确认");
+
+/**
  * @brief 选择文件夹对话框
  * @param hwnd 父窗口句柄
  * @param title 对话框标题
@@ -140,6 +149,22 @@ bool OpenWithDefaultProgram(const std::filesystem::path& filePath);
  * @return 成功返回 true
  */
 bool OpenWithProgram(const std::filesystem::path& filePath, const std::filesystem::path& programPath);
+
+/**
+ * @brief 选择单个视频文件对话框
+ * @param hwnd 父窗口句柄
+ * @param title 对话框标题
+ * @return 选择的文件路径，取消则返回空路径
+ */
+std::filesystem::path SelectSingleVideoFileDialog(HWND hwnd, const std::string& title = "选择视频文件");
+
+/**
+ * @brief 选择多个视频文件对话框
+ * @param hwnd 父窗口句柄
+ * @param title 对话框标题
+ * @return 选择的文件路径列表，取消则返回空列表
+ */
+std::vector<std::filesystem::path> SelectMultipleVideoFilesDialog(HWND hwnd, const std::string& title = "选择视频文件");
 
 } // namespace Utils
 } // namespace VideoViewer

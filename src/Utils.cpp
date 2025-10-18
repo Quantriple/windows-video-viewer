@@ -298,8 +298,193 @@ std::filesystem::path SelectSingleVideoFileDialog(HWND hwnd, const std::string& 
     printf("父窗口句柄: %p\n", hwnd);
     printf("对话框标题: %s\n", title.c_str());
     
-    // 实现文件选择对话框逻辑
+    IFileOpenDialog* pFileOpen = nullptr;
+    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL,
+                                 IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
+    
+    if (FAILED(hr)) {
+        printf("SelectSingleVideoFileDialog: CoCreateInstance 失败, HRESULT = 0x%08lX\n", hr);
+        return std::filesystem::path();
+    }
+    
+    printf("SelectSingleVideoFileDialog: IFileOpenDialog 创建成功\n");
+    
+    // 设置文件类型过滤器
+    COMDLG_FILTERSPEC fileTypes[] = {
+        { L"视频文件", L"*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.flv;*.webm;*.m4v;*.3gp;*.3g2;*.asf;*.divx;*.f4v;*.m2ts;*.mts;*.ogv;*.rm;*.rmvb;*.vob;*.xvid" },
+        { L"所有文件", L"*.*" }
+    };
+    
+    hr = pFileOpen->SetFileTypes(ARRAYSIZE(fileTypes), fileTypes);
+    if (SUCCEEDED(hr)) {
+        printf("SelectSingleVideoFileDialog: 设置文件类型过滤器成功\n");
+    } else {
+        printf("SelectSingleVideoFileDialog: 设置文件类型过滤器失败, HRESULT = 0x%08lX\n", hr);
+    }
+    
+    // 设置标题
+    if (SUCCEEDED(hr)) {
+        std::wstring wTitle = StringToWString(title);
+        hr = pFileOpen->SetTitle(wTitle.c_str());
+        if (SUCCEEDED(hr)) {
+            printf("SelectSingleVideoFileDialog: 设置标题成功: %s\n", title.c_str());
+        } else {
+            printf("SelectSingleVideoFileDialog: 设置标题失败, HRESULT = 0x%08lX\n", hr);
+        }
+    }
+    
+    // 显示对话框
+    if (SUCCEEDED(hr)) {
+        printf("SelectSingleVideoFileDialog: 准备显示对话框\n");
+        hr = pFileOpen->Show(hwnd);
+        if (SUCCEEDED(hr)) {
+            printf("SelectSingleVideoFileDialog: 对话框显示成功，用户已选择\n");
+        } else if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+            printf("SelectSingleVideoFileDialog: 用户取消了对话框\n");
+        } else {
+            printf("SelectSingleVideoFileDialog: 显示对话框失败, HRESULT = 0x%08lX\n", hr);
+        }
+    }
+    
+    // 获取结果
+    if (SUCCEEDED(hr)) {
+        IShellItem* pItem = nullptr;
+        hr = pFileOpen->GetResult(&pItem);
+        if (SUCCEEDED(hr)) {
+            PWSTR pszFilePath = nullptr;
+            hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+            if (SUCCEEDED(hr)) {
+                std::filesystem::path result(pszFilePath);
+                printf("SelectSingleVideoFileDialog: 获取选择路径成功: %ls\n", pszFilePath);
+                CoTaskMemFree(pszFilePath);
+                pItem->Release();
+                pFileOpen->Release();
+                return result;
+            } else {
+                printf("SelectSingleVideoFileDialog: GetDisplayName 失败, HRESULT = 0x%08lX\n", hr);
+            }
+            pItem->Release();
+        } else {
+            printf("SelectSingleVideoFileDialog: GetResult 失败, HRESULT = 0x%08lX\n", hr);
+        }
+    }
+    
+    pFileOpen->Release();
+    printf("SelectSingleVideoFileDialog: 返回空路径\n");
     return std::filesystem::path();
+}
+
+std::vector<std::filesystem::path> SelectMultipleVideoFilesDialog(HWND hwnd, const std::string& title) {
+    printf("=== SelectMultipleVideoFilesDialog 开始 ===\n");
+    printf("父窗口句柄: %p\n", hwnd);
+    printf("对话框标题: %s\n", title.c_str());
+    
+    IFileOpenDialog* pFileOpen = nullptr;
+    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL,
+                                 IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
+    
+    if (FAILED(hr)) {
+        printf("SelectMultipleVideoFilesDialog: CoCreateInstance 失败, HRESULT = 0x%08lX\n", hr);
+        return std::vector<std::filesystem::path>();
+    }
+    
+    printf("SelectMultipleVideoFilesDialog: IFileOpenDialog 创建成功\n");
+    
+    // 设置选项为多选
+    DWORD dwOptions;
+    hr = pFileOpen->GetOptions(&dwOptions);
+    if (SUCCEEDED(hr)) {
+        hr = pFileOpen->SetOptions(dwOptions | FOS_ALLOWMULTISELECT);
+        if (SUCCEEDED(hr)) {
+            printf("SelectMultipleVideoFilesDialog: 设置 FOS_ALLOWMULTISELECT 选项成功\n");
+        } else {
+            printf("SelectMultipleVideoFilesDialog: 设置 FOS_ALLOWMULTISELECT 选项失败, HRESULT = 0x%08lX\n", hr);
+        }
+    } else {
+        printf("SelectMultipleVideoFilesDialog: GetOptions 失败, HRESULT = 0x%08lX\n", hr);
+    }
+    
+    // 设置文件类型过滤器
+    if (SUCCEEDED(hr)) {
+        COMDLG_FILTERSPEC fileTypes[] = {
+            { L"视频文件", L"*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.flv;*.webm;*.m4v;*.3gp;*.3g2;*.asf;*.divx;*.f4v;*.m2ts;*.mts;*.ogv;*.rm;*.rmvb;*.vob;*.xvid" },
+            { L"所有文件", L"*.*" }
+        };
+        
+        hr = pFileOpen->SetFileTypes(ARRAYSIZE(fileTypes), fileTypes);
+        if (SUCCEEDED(hr)) {
+            printf("SelectMultipleVideoFilesDialog: 设置文件类型过滤器成功\n");
+        } else {
+            printf("SelectMultipleVideoFilesDialog: 设置文件类型过滤器失败, HRESULT = 0x%08lX\n", hr);
+        }
+    }
+    
+    // 设置标题
+    if (SUCCEEDED(hr)) {
+        std::wstring wTitle = StringToWString(title);
+        hr = pFileOpen->SetTitle(wTitle.c_str());
+        if (SUCCEEDED(hr)) {
+            printf("SelectMultipleVideoFilesDialog: 设置标题成功: %s\n", title.c_str());
+        } else {
+            printf("SelectMultipleVideoFilesDialog: 设置标题失败, HRESULT = 0x%08lX\n", hr);
+        }
+    }
+    
+    // 显示对话框
+    if (SUCCEEDED(hr)) {
+        printf("SelectMultipleVideoFilesDialog: 准备显示对话框\n");
+        hr = pFileOpen->Show(hwnd);
+        if (SUCCEEDED(hr)) {
+            printf("SelectMultipleVideoFilesDialog: 对话框显示成功，用户已选择\n");
+        } else if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+            printf("SelectMultipleVideoFilesDialog: 用户取消了对话框\n");
+        } else {
+            printf("SelectMultipleVideoFilesDialog: 显示对话框失败, HRESULT = 0x%08lX\n", hr);
+        }
+    }
+    
+    // 获取多选结果
+    std::vector<std::filesystem::path> results;
+    if (SUCCEEDED(hr)) {
+        IShellItemArray* pItems = nullptr;
+        hr = pFileOpen->GetResults(&pItems);
+        if (SUCCEEDED(hr)) {
+            DWORD itemCount = 0;
+            hr = pItems->GetCount(&itemCount);
+            if (SUCCEEDED(hr)) {
+                printf("SelectMultipleVideoFilesDialog: 用户选择了 %lu 个文件\n", itemCount);
+                
+                for (DWORD i = 0; i < itemCount; i++) {
+                    IShellItem* pItem = nullptr;
+                    hr = pItems->GetItemAt(i, &pItem);
+                    if (SUCCEEDED(hr)) {
+                        PWSTR pszFilePath = nullptr;
+                        hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+                        if (SUCCEEDED(hr)) {
+                            std::filesystem::path filePath(pszFilePath);
+                            results.push_back(filePath);
+                            printf("SelectMultipleVideoFilesDialog: 文件 %lu: %ls\n", i + 1, pszFilePath);
+                            CoTaskMemFree(pszFilePath);
+                        } else {
+                            printf("SelectMultipleVideoFilesDialog: GetDisplayName 失败 (文件 %lu), HRESULT = 0x%08lX\n", i + 1, hr);
+                        }
+                        pItem->Release();
+                    } else {
+                        printf("SelectMultipleVideoFilesDialog: GetItemAt 失败 (文件 %lu), HRESULT = 0x%08lX\n", i + 1, hr);
+                    }
+                }
+            } else {
+                printf("SelectMultipleVideoFilesDialog: GetCount 失败, HRESULT = 0x%08lX\n", hr);
+            }
+            pItems->Release();
+        } else {
+            printf("SelectMultipleVideoFilesDialog: GetResults 失败, HRESULT = 0x%08lX\n", hr);
+        }
+    }
+    
+    pFileOpen->Release();
+    printf("SelectMultipleVideoFilesDialog: 返回 %zu 个文件路径\n", results.size());
+    return results;
 }
 
 } // namespace Utils
