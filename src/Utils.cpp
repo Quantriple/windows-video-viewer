@@ -160,7 +160,7 @@ bool ShowConfirmDialog(HWND hwnd, const std::string& message, const std::string&
 }
 
 std::filesystem::path SelectFolderDialog(HWND hwnd, const std::string& title) {
-    printf("=== SelectFolderDialog 开始 ===");
+    printf("=== SelectFolderDialog 开始 ===\n");
     printf("父窗口句柄: %p\n", hwnd);
     printf("对话框标题: %s\n", title.c_str());
     
